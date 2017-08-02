@@ -1,0 +1,51 @@
+// MusicXML Class Library
+// Copyright (c) by Matthew James Briggs
+// Distributed under the MIT License
+
+#pragma once
+
+#include "../../core/ForwardDeclare.h"
+#include "../../core/ElementInterface.h"
+#include "../../core/Decimals.h"
+#include "../../core/elements/DistanceAttributes.h"
+
+#include <iosfwd>
+#include <memory>
+#include <vector>
+
+namespace mx
+{
+    namespace core
+    {
+
+        MX_FORWARD_DECLARE_ATTRIBUTES( DistanceAttributes )
+        MX_FORWARD_DECLARE_ELEMENT( Distance )
+
+        inline DistancePtr makeDistance() { return std::make_shared<Distance>(); }
+		inline DistancePtr makeDistance( const TenthsValue& value ) { return std::make_shared<Distance>( value ); }
+		inline DistancePtr makeDistance( TenthsValue&& value ) { return std::make_shared<Distance>( std::move( value ) ); }
+
+        class Distance : public ElementInterface
+        {
+        public:
+            Distance();
+            Distance( const TenthsValue& value );
+
+            virtual bool hasAttributes() const;
+            virtual bool hasContents() const;
+            virtual std::ostream& streamAttributes( std::ostream& os ) const;
+            virtual std::ostream& streamName( std::ostream& os ) const;
+            virtual std::ostream& streamContents( std::ostream& os, const int indentLevel, bool& isOneLineOnly ) const;
+            DistanceAttributesPtr getAttributes() const;
+            void setAttributes( const DistanceAttributesPtr& attributes );
+            TenthsValue getValue() const;
+            void setValue( const TenthsValue& value );
+
+            bool fromXElement( std::ostream& message, xml::XElement& xelement );
+
+        private:
+            TenthsValue myValue;
+            DistanceAttributesPtr myAttributes;
+        };
+    }
+}
