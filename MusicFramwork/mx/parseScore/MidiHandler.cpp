@@ -71,6 +71,7 @@ void MidiHandler::init() {
     this->mMidifile->absoluteTicks();
     this->mMidifile->setTicksPerQuarterNote(this->mTpq);
     this->mTempoPercent = 1.0;
+    this->mTempo = 120;
 }
 
 void MidiHandler::setTempoPercent(double percent){
@@ -80,10 +81,13 @@ void MidiHandler::setTempoPercent(double percent){
     this->mTempoPercent = percent;
 }
 
-void MidiHandler::save (string path) {
+MidiInfo* MidiHandler::save (string path) {
     this->parse(this->mScore);
     this->mMidifile->sortTracks();
     this->mMidifile->write(path);
+    MidiInfo* info = new MidiInfo();
+    info->mTempo = this->getTempo();
+    return info;
 }
 
 void MidiHandler::reset () {
@@ -110,17 +114,22 @@ void MidiHandler::parseScoreHeader(mx::core::ScorePartwisePtr scorePartwise){
     auto partlist = scorePartwise->getScoreHeaderGroup()->getPartList();
     auto name = partlist->getScorePart()->getPartName()->getValue().getValue();
     auto partid = partlist->getScorePart()->getAttributes()->id.getValue();
-    auto instrument = *(partlist->getScorePart()->getMidiDeviceInstrumentGroupSet().rbegin());
-    if (instrument->getHasMidiInstrument()) {
-        auto channel = instrument->getMidiInstrument()->getMidiChannel()->getValue().getValue();
-        auto program = instrument->getMidiInstrument()->getMidiProgram()->getValue().getValue();
-        this->mParts.push_back(new MidiPart(1,channel,program,this->mMidifile));
+    
+    if (partlist->getScorePart()->getMidiDeviceInstrumentGroupSet().size()) {
+        auto instrument = *(partlist->getScorePart()->getMidiDeviceInstrumentGroupSet().rbegin());
+        if (instrument->getHasMidiInstrument()) {
+            auto channel = instrument->getMidiInstrument()->getMidiChannel()->getValue().getValue();
+            auto program = instrument->getMidiInstrument()->getMidiProgram()->getValue().getValue();
+            this->mParts.push_back(new MidiPart(1,channel,program,this->mMidifile));
+        }
+    }else if(partlist->getScorePart()->getScoreInstrumentSet().size()){
+        this->mParts.push_back(new MidiPart(1,1,1,this->mMidifile));
     }
     
     
     // 添加剩余part
     for (auto partname_it = partlist->getPartGroupOrScorePartSet().rbegin(); partname_it != partlist->getPartGroupOrScorePartSet().rend(); partname_it++) {
-    
+        
         this->addTrack();
         
         auto choice = (*partname_it)->getChoice();
@@ -147,7 +156,7 @@ void MidiHandler::parsePartList(mx::core::ScorePartwisePtr scorePartwise){
             MidiPart* prePart = this->mParts[i-1];
             this->mCurrentTrack += prePart->mStaffs;
         }
-
+        
         this->reset();
         auto partwise = (*part_it);
         for (auto measure_it = partwise->getPartwiseMeasureSet().cbegin();measure_it != partwise->getPartwiseMeasureSet().cend(); measure_it++) {
@@ -187,12 +196,12 @@ void MidiHandler::parseDataChoice(MusicDataChoicePtr dataChoice, int partIndex){
     }else if (choiceType == MusicDataChoice::Choice::sound) {
         if (dataChoice->getSound()->getAttributes()->hasTempo) {
             auto tempo = dataChoice->getSound()->getAttributes()->tempo.getValue();
-            this->mMidifile->addTempo(this->mCurrentTrack, 0, tempo * this->mTempoPercent);
+            this->addTempo(this->mCurrentTrack,0,tempo);
         }
     }else if (choiceType == MusicDataChoice::Choice::direction) {
         if (dataChoice->getDirection()->getSound()->getAttributes()->hasTempo) {
             auto tempo = dataChoice->getDirection()->getSound()->getAttributes()->tempo.getValue();
-            this->mMidifile->addTempo(this->mCurrentTrack, 0, tempo * this->mTempoPercent);
+            this->addTempo(this->mCurrentTrack,0,tempo);
         }
     }
 }
@@ -246,12 +255,17 @@ void MidiHandler::parseProperties(mx::core::PropertiesPtr property, int partInde
             this->mMidifile->addTimeSignature(this->mCurrentTrack, this->mTicks, atoi(beats.c_str()),atoi(beat_types.c_str()));
         }
     }
-//    if (property->getKeySet().size()) {
-//        KeyPtr keyPtr = *(property->getKeySet().cbegin());
-//        auto fifth = keyPtr->getKeyChoice()->getTraditionalKey()->getFifths()->getValue().getValue();
-//        auto mode = keyPtr->getKeyChoice()->getTraditionalKey()->getMode()->getValue().getValue();
-//        
-//    }
+    //    if (property->getKeySet().size()) {
+    //        KeyPtr keyPtr = *(property->getKeySet().cbegin());
+    //        auto fifth = keyPtr->getKeyChoice()->getTraditionalKey()->getFifths()->getValue().getValue();
+    //        auto mode = keyPtr->getKeyChoice()->getTraditionalKey()->getMode()->getValue().getValue();
+    //
+    //    }
+}
+
+void MidiHandler::addTempo(int track,int tick ,int tempo) {
+    this->mTempo = tempo;
+    this->mMidifile->addTempo(track, tick, tempo * this->mTempoPercent);
 }
 
 /* add real note */
@@ -283,6 +297,10 @@ void MidiHandler::addForward(int duration) {
 /* 根据比例放大duration */
 int MidiHandler::getRelativeDuration(int duration) {
     return  double(this->mTpq)/double(this->mCurrentDivision) * duration;
+}
+
+int MidiHandler::getTempo(){
+    return this->mTempo * this->mTempoPercent;
 }
 
 MidiHandler::~MidiHandler () {}

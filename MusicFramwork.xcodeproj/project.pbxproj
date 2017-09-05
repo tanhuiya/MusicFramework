@@ -21,6 +21,8 @@
 		F5189AD41F3170BA008B8826 /* Options.h in Headers */ = {isa = PBXBuildFile; fileRef = F5189AC51F3170BA008B8826 /* Options.h */; };
 		F5189AD51F3170BA008B8826 /* MidiHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5189AC71F3170BA008B8826 /* MidiHandler.cpp */; };
 		F5189AD61F3170BA008B8826 /* MidiHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = F5189AC81F3170BA008B8826 /* MidiHandler.h */; };
+		F550C79B1F5E53B900B57C90 /* ComparePooling.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F550C7991F5E53B900B57C90 /* ComparePooling.cpp */; };
+		F550C79C1F5E53B900B57C90 /* ComparePooling.h in Headers */ = {isa = PBXBuildFile; fileRef = F550C79A1F5E53B900B57C90 /* ComparePooling.h */; };
 		F5FE12551F20BFEB00F80F0E /* ClefData.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5FE0CF31F20BFE400F80F0E /* ClefData.cpp */; };
 		F5FE125A1F20BFEB00F80F0E /* DocumentManager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5FE0CF81F20BFE400F80F0E /* DocumentManager.cpp */; };
 		F5FE125C1F20BFEB00F80F0E /* DurationData.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5FE0CFA1F20BFE400F80F0E /* DurationData.cpp */; };
@@ -696,6 +698,8 @@
 		F5189AC51F3170BA008B8826 /* Options.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Options.h; sourceTree = "<group>"; };
 		F5189AC71F3170BA008B8826 /* MidiHandler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MidiHandler.cpp; sourceTree = "<group>"; };
 		F5189AC81F3170BA008B8826 /* MidiHandler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MidiHandler.h; sourceTree = "<group>"; };
+		F550C7991F5E53B900B57C90 /* ComparePooling.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ComparePooling.cpp; sourceTree = "<group>"; };
+		F550C79A1F5E53B900B57C90 /* ComparePooling.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ComparePooling.h; sourceTree = "<group>"; };
 		F5FE0CF01F20BFE300F80F0E /* ApiCommon.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ApiCommon.h; sourceTree = "<group>"; };
 		F5FE0CF11F20BFE400F80F0E /* ApiEquality.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ApiEquality.h; sourceTree = "<group>"; };
 		F5FE0CF21F20BFE400F80F0E /* BarlineData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BarlineData.h; sourceTree = "<group>"; };
@@ -2112,9 +2116,19 @@
 			path = parseScore;
 			sourceTree = "<group>";
 		};
+		F550C7981F5E53B900B57C90 /* compare */ = {
+			isa = PBXGroup;
+			children = (
+				F550C7991F5E53B900B57C90 /* ComparePooling.cpp */,
+				F550C79A1F5E53B900B57C90 /* ComparePooling.h */,
+			);
+			path = compare;
+			sourceTree = "<group>";
+		};
 		F5FE0CEE1F20BFE300F80F0E /* mx */ = {
 			isa = PBXGroup;
 			children = (
+				F550C7981F5E53B900B57C90 /* compare */,
 				F5189AB91F3170BA008B8826 /* midifile */,
 				F5189AC61F3170BA008B8826 /* parseScore */,
 				F5FE0CEF1F20BFE300F80F0E /* api */,
@@ -3587,6 +3601,7 @@
 				F5189AD21F3170BA008B8826 /* MidiMessage.h in Headers */,
 				F5189ACA1F3170BA008B8826 /* Binasc.h in Headers */,
 				F5189AD01F3170BA008B8826 /* MidiFile.h in Headers */,
+				F550C79C1F5E53B900B57C90 /* ComparePooling.h in Headers */,
 				F5189AD41F3170BA008B8826 /* Options.h in Headers */,
 				F5189AD61F3170BA008B8826 /* MidiHandler.h in Headers */,
 			);
@@ -3668,7 +3683,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\n/bin/cp -R ./MusicFramwork/mx Headers/\n\nfind ./Headers/ -name '*.cpp' | xargs rm\nFMK_NAME=${PROJECT_NAME}.framework\n/bin/cp -R Headers \"${BUILT_PRODUCTS_DIR}/${FMK_NAME}\"\n\n";
+			shellScript = "\n/bin/cp -R ./MusicFramwork/mx Headers/\n\nfind ./Headers/ -name '*.cpp' | xargs rm\nFMK_NAME=${PROJECT_NAME}.framework\n/bin/cp -R Headers \"${BUILT_PRODUCTS_DIR}/${FMK_NAME}\"\nrm -rf Headers/\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -4311,6 +4326,7 @@
 				F5FE173F1F20BFF200F80F0E /* ScoreConversions.cpp in Sources */,
 				F5FE178A1F20BFF200F80F0E /* pugixml.cpp in Sources */,
 				F5FE12BC1F20BFEC00F80F0E /* ArrowStyle.cpp in Sources */,
+				F550C79B1F5E53B900B57C90 /* ComparePooling.cpp in Sources */,
 				F5FE15DE1F20BFF000F80F0E /* Rehearsal.cpp in Sources */,
 				F5FE14921F20BFEE00F80F0E /* KindAttributes.cpp in Sources */,
 				F5FE13C61F20BFED00F80F0E /* Eyeglasses.cpp in Sources */,

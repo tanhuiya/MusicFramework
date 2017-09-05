@@ -24,10 +24,15 @@ class MidiPart {
     void addPatches();
     
     MidiFile* mFileHandler;
-    int mStaffs;// default 1 
+    int mStaffs;// default 1
     int mChannel;
     int mProgram;
     int mStartTrack;
+};
+
+class MidiInfo {
+public:
+    int mTempo;
 };
 
 class MidiHandler {
@@ -35,9 +40,9 @@ public:
     MidiHandler(string filePath);
     MidiHandler(mx::core::ScorePartwisePtr score);
     void setTempoPercent(double percent);
-    void save(string path);
+    MidiInfo* save(string path);
     ~MidiHandler();
-    
+    int  getTempo();
 private:
     void init ();
     void reset () ;
@@ -53,6 +58,7 @@ private:
     void addForward(int duration);
     void addTrack();
     int  getRelativeDuration(int duration);
+    void addTempo(int track,int tick ,int tempo);
 protected:
     MidiFile* mMidifile;
     int mTpq;
@@ -64,6 +70,7 @@ protected:
     double mTempoPercent;
     mx::core::ScorePartwisePtr mScore;
     string mOutputPath;
+    int mTempo;
 };
 
 #endif /* MidiHandler_h */
