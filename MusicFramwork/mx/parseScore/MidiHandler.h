@@ -40,6 +40,7 @@ public:
     MidiHandler(string filePath);
     MidiHandler(mx::core::ScorePartwisePtr score);
     void setTempoPercent(double percent);
+    void setTempoValue(int tempoValue);
     MidiInfo* save(string path);
     ~MidiHandler();
     int  getTempo();
@@ -68,6 +69,8 @@ protected:
     std::vector<int> mStepMap;
     std::vector<MidiPart*> mParts;
     double mTempoPercent;
+    // 用户手动设置的
+    int mAdjustTempo;
     mx::core::ScorePartwisePtr mScore;
     string mOutputPath;
     int mTempo;

@@ -10,7 +10,7 @@
 
 #pragma mark MidiSignal Class
 
-MidiSignal::MidiSignal(int channel, double timeStamp, int noteNumber, ECNoteType type) {
+MidiSignal::MidiSignal(int channel, double timeStamp, int noteNumber, EMidiSignalType type) {
     this->mTimeStamp = timeStamp;
     this->mNoteNumber = noteNumber;
     this->mType = type;
@@ -19,25 +19,19 @@ MidiSignal::MidiSignal(int channel, double timeStamp, int noteNumber, ECNoteType
 
 #pragma mark CNote Class
 
-CNote::CNote(int channel, int noteNumber,  double startTime, int duration ,int mStaff,int xPos){
+CNote::CNote(int staffIndex, int noteNumber,  double startTime, double duration ){
     this->mNoteNumber = noteNumber;
-    this->mChannel = channel;
+    this->mStaffIndex = staffIndex;
     this->mDuration = duration;
     this->mStartTime = startTime;
-    this->isMapped = false;
-    this->mType = ECNoteType::CNoteTypeNone;
-    this->mStaff = mStaff;
-    this->mXpos = xPos;
+    this->mType = ECNoteResultType::ECNoteResultTypeNone;
+    this->mErrorNumber = 0;
 }
 
 #pragma mark CResult Class
 CResult::CResult(){
-    this->rate = 0.0;
-    this->mTimeOutNotes = std::vector<CNote*>();
-    this->mErrorNotes = std::vector<CNote*>();
-    this->mShortNotes = std::vector<CNote*>();
-    this->mLostNotes = std::vector<CNote*>();
-    this->mCorrectNotes = std::vector<CNote*>();
+    this->mTotalNotes = 0;
+    this->mResultNotes = std::vector<CNote*>();
 }
 
 #pragma mark ComparePooling Class
@@ -45,22 +39,27 @@ ComparePooling::ComparePooling(std::vector<CNote *> notes, double theta) {
     this->mNotes = notes;
     this->mTheta = theta;
     this->mTempSignals = std::vector<MidiSignal*>();
+    this->mMode = InstrumentMode_DoubleKey;// 默认双排键
 }
 
 void ComparePooling::resetPool(){
     for (auto noteIndex = this->mNotes.cbegin(); noteIndex != this->mNotes.cend(); noteIndex++) {
         CNote* note = (*noteIndex);
-        note->isMapped = false;
-        note->mType = ECNoteType::CNoteTypeNone;
+        note->mType = ECNoteResultType::ECNoteResultTypeNone;
+        note->mErrorNumber = 0;
     }
 }
 
-std::vector<CNote*> ComparePooling::receiveCNotes(std::vector<MidiSignal*> signals, double currentTime) {
+void ComparePooling::setMode(EInstrumentMode mode){
+    this->mMode = mode;
+}
+
+std::vector<CNote*> ComparePooling::receiveMidiSignals(std::vector<MidiSignal*> signals, double currentTime) {
     std::vector<CNote*> retVec = std::vector<CNote*>();
     
     for (auto it = signals.cbegin(); it != signals.cend(); it++ ) {
         CNote* note = this->getNearestCNote( *it);
-        if (!note && (*it)->mType == ECNoteType::CNoteTypeOn) {
+        if (!note && (*it)->mType == EMidiSignalType::EMidiSignalTypeOn) {
             // 该信号是错误信号 找出弹错的信号
             note = this->getErrorCNote( *it);
         }
@@ -75,9 +74,8 @@ std::vector<CNote*> ComparePooling::receiveCNotes(std::vector<MidiSignal*> signa
     for (auto noteIndex = this->mNotes.cbegin(); noteIndex != this->mNotes.cend(); noteIndex++) {
         CNote* note = (*noteIndex);
         // 定义超过2倍的误差 theta 为漏键
-        if (note->mType == ECNoteType::CNoteTypeNone && !note->isMapped && note->mStartTime + 2 * this->mTheta < currentTime) {
-            note->isMapped = true;
-            note->mType = ECNoteType::CNoteTypeLost;
+        if (note->mType == ECNoteResultType::ECNoteResultTypeNone&& note->mStartTime + 2 * this->mTheta < currentTime) {
+            note->mType = ECNoteResultType::ECNoteResultTypeLost;
             auto pos= std::find(retVec.begin(), retVec.end(), note);
             if (pos == retVec.end()) {
                 retVec.push_back(note);
@@ -90,31 +88,30 @@ std::vector<CNote*> ComparePooling::receiveCNotes(std::vector<MidiSignal*> signa
 // 获取结果
 CResult* ComparePooling::getFinalResult(){
     CResult* result = new CResult();
+    result->mTotalNotes = (int)this->mNotes.size();
     for (auto noteIndex = this->mNotes.cbegin(); noteIndex != this->mNotes.cend(); noteIndex++) {
         CNote* note = (*noteIndex);
-        if(note->mType == ECNoteType::CNoteTypeError){
-            result->mErrorNotes.push_back(note);
-        }else if (note->mType == ECNoteType::CNoteTypeShort){
-            result->mShortNotes.push_back(note);
-        }else if(note->mType == ECNoteType::CNoteTypeTimeout){
-            result->mTimeOutNotes.push_back(note);
-        }else if(note->mType == ECNoteType::CNoteTypeLost){
-            result->mLostNotes.push_back(note);
-        }else {
-            result->mCorrectNotes.push_back(note);
+        if(note->mType == ECNoteResultType::ECNoteResultTypeError){
+            result->mResultNotes.push_back(note);
+        }else if (note->mType == ECNoteResultType::ECNoteResultTypeShort){
+            result->mResultNotes.push_back(note);
+        }else if(note->mType == ECNoteResultType::ECNoteResultTypeTimeout){
+            result->mResultNotes.push_back(note);
+        }else if(note->mType == ECNoteResultType::ECNoteResultTypeLost){
+            result->mResultNotes.push_back(note);
         }
     }
-    result->rate = result->mCorrectNotes.size() * 1.0 / this->mNotes.size();
     return result;
 }
 
+// 检查是否错误信号 时间差在theta 范围内，但是notenumber 不对
 CNote* ComparePooling::getErrorCNote(MidiSignal* signal) {
     CNote* ret = NULL;
     for (auto noteIndex = this->mNotes.cbegin(); noteIndex != this->mNotes.cend(); noteIndex++) {
         CNote* note = (*noteIndex);
-        if (note->mType == ECNoteType::CNoteTypeNone && !note->isMapped && abs(note->mStartTime - signal->mTimeStamp)  <= this->mTheta) {
-            note->isMapped = true;
-            note->mType = ECNoteType::CNoteTypeError;
+        if (note->mType == ECNoteResultType::ECNoteResultTypeNone && abs(note->mStartTime - signal->mTimeStamp)  <= this->mTheta) {
+            note->mType = ECNoteResultType::ECNoteResultTypeError;
+            note->mErrorNumber = signal->mNoteNumber;
             ret = note;
             break;// 避免将多个同时间的note置为error
         }
@@ -123,17 +120,18 @@ CNote* ComparePooling::getErrorCNote(MidiSignal* signal) {
 }
 
 
+// 通过midisignal 找到该时间对应的标准note
 CNote* ComparePooling::getNearestCNote(MidiSignal* signal) {
     CNote* ret = NULL;
     
-    if (signal->mType == ECNoteType::CNoteTypeOn) { // 处理noteOn 信号
+    if (signal->mType == EMidiSignalType::EMidiSignalTypeOn) { // 处理noteOn 信号
         CNote* note = this->getCNoteBy(signal->mChannel, signal->mNoteNumber, signal->mTimeStamp);
         if (note) {
             ret = note;
-            ret->mType = ECNoteType::CNoteTypeOn;
+            ret->mType = ECNoteResultType::ECNoteResultTypeOn;
             this->mTempSignals.push_back(signal);// 将 noteOn 信号储存起来，等待noteOff信号
         }
-    }else {
+    }else if (signal->mType == EMidiSignalType::EMidiSignalTypeOff) {// 处理Off 信号
         for (std::vector<MidiSignal*>::const_iterator tempSignalIndex = this->mTempSignals.cbegin(); tempSignalIndex != this->mTempSignals.cend(); tempSignalIndex++) {
             if ((*tempSignalIndex)->mNoteNumber == signal->mNoteNumber &&
                 (*tempSignalIndex)->mChannel == signal->mChannel) {
@@ -141,13 +139,12 @@ CNote* ComparePooling::getNearestCNote(MidiSignal* signal) {
                 if (ret) {
                     if (signal->mTimeStamp-(*tempSignalIndex)->mTimeStamp < ret->mDuration - this->mTheta) {
                         // todo:暂时不处理时间长短
-                        ret->mType = ECNoteType::CNoteTypeWhole; // 按键时间太短
+                        ret->mType = ECNoteResultType::ECNoteResultTypeOff; // 按键时间太短
                     }else if (signal->mTimeStamp-(*tempSignalIndex)->mTimeStamp > ret->mDuration + this->mTheta) {
-                        ret->mType = ECNoteType::CNoteTypeWhole; // 按键时间太长
+                        ret->mType = ECNoteResultType::ECNoteResultTypeOff; // 按键时间太长
                     }else{
-                        ret->mType = ECNoteType::CNoteTypeWhole;
+                        ret->mType = ECNoteResultType::ECNoteResultTypeOff;
                     }
-                    ret->isMapped = true;
                     this->mTempSignals.erase(tempSignalIndex);
                 }
                 break;
@@ -157,11 +154,13 @@ CNote* ComparePooling::getNearestCNote(MidiSignal* signal) {
     return ret;
 }
 
+// 通过 midi信号的channel-> staff ,notenumber ,time 获取note
 CNote* ComparePooling::getCNoteBy(int channel,int notenumber, int time ) {
+    int staffIndex = this->getStaffIndexByChannel(channel);
     for (auto noteIndex = this->mNotes.cbegin(); noteIndex != this->mNotes.cend(); noteIndex++ ) {
         CNote* note = * noteIndex;
-        if (!note->isMapped && // 没有被匹配
-            note->mChannel == channel &&  // channel 相等
+        if ((note->mType == ECNoteResultTypeOn||note->mType == ECNoteResultTypeNone)&& // 信号未结束或未处理
+            note->mStaffIndex == staffIndex &&  // partType 相等
             note->mNoteNumber == notenumber &&
             note->mStartTime - mTheta <= time &&  // 在 theta 范围之内
             note->mStartTime + mTheta >= time) {
@@ -170,3 +169,31 @@ CNote* ComparePooling::getCNoteBy(int channel,int notenumber, int time ) {
     }
     return NULL;
 }
+/**
+ * 根据 channel 获取staff index
+ * 1 对应 左手
+ * 2 对应 右手
+ * 3 对应 脚
+ */
+int ComparePooling::getStaffIndexByChannel(int channel) {
+    int staff = 0;
+    switch (this->mMode) {
+        case InstrumentMode_Piano:
+            staff = channel;
+            break;
+        case InstrumentMode_DoubleKey:
+            if (0 == channel || 1 == channel|| 2 == channel|| 7 == channel) {
+                staff = 1;
+            }else if (3 == channel || 4 == channel){
+                staff = 2;
+            }else if (5 == channel || 6 == channel){
+                staff = 3;
+            }
+            break;
+        default:
+            break;
+    }
+    return staff;
+}
+
+

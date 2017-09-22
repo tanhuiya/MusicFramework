@@ -72,6 +72,7 @@ void MidiHandler::init() {
     this->mMidifile->setTicksPerQuarterNote(this->mTpq);
     this->mTempoPercent = 1.0;
     this->mTempo = 120;
+    this->mAdjustTempo = 0;
 }
 
 void MidiHandler::setTempoPercent(double percent){
@@ -79,6 +80,12 @@ void MidiHandler::setTempoPercent(double percent){
         return;
     }
     this->mTempoPercent = percent;
+}
+
+void MidiHandler::setTempoValue(int tempoValue){
+    if (tempoValue >= 30 && tempoValue <= 120 ){
+        this->mAdjustTempo = this->mTempo = tempoValue;
+    }
 }
 
 MidiInfo* MidiHandler::save (string path) {
@@ -114,11 +121,11 @@ void MidiHandler::parseScoreHeader(mx::core::ScorePartwisePtr scorePartwise){
     auto partlist = scorePartwise->getScoreHeaderGroup()->getPartList();
     auto name = partlist->getScorePart()->getPartName()->getValue().getValue();
     auto partid = partlist->getScorePart()->getAttributes()->id.getValue();
-    
+    int channel = 1;
     if (partlist->getScorePart()->getMidiDeviceInstrumentGroupSet().size()) {
         auto instrument = *(partlist->getScorePart()->getMidiDeviceInstrumentGroupSet().rbegin());
         if (instrument->getHasMidiInstrument()) {
-            auto channel = instrument->getMidiInstrument()->getMidiChannel()->getValue().getValue();
+            channel = instrument->getMidiInstrument()->getMidiChannel()->getValue().getValue();
             auto program = instrument->getMidiInstrument()->getMidiProgram()->getValue().getValue();
             this->mParts.push_back(new MidiPart(1,channel,program,this->mMidifile));
         }
@@ -135,9 +142,14 @@ void MidiHandler::parseScoreHeader(mx::core::ScorePartwisePtr scorePartwise){
         auto choice = (*partname_it)->getChoice();
         if (choice == PartGroupOrScorePart::Choice::partGroup) {
         }else if(choice == PartGroupOrScorePart::Choice::scorePart){
-            auto instrument2 = *((*partname_it)->getScorePart()->getMidiDeviceInstrumentGroupSet().rbegin());
-            auto channel = instrument2->getMidiInstrument()->getMidiChannel()->getValue().getValue();
-            auto program = instrument2->getMidiInstrument()->getMidiProgram()->getValue().getValue();
+            int program = 1;
+            if ((*partname_it)->getScorePart()->getMidiDeviceInstrumentGroupSet().size()) {
+                auto instrument2 = *((*partname_it)->getScorePart()->getMidiDeviceInstrumentGroupSet().rbegin());
+                channel = instrument2->getMidiInstrument()->getMidiChannel()->getValue().getValue();
+                program = instrument2->getMidiInstrument()->getMidiProgram()->getValue().getValue();
+            }else{
+                channel++;
+            }
             this->mParts.push_back(new MidiPart(1,channel,program,this->mMidifile));
         }
     }
@@ -264,8 +276,13 @@ void MidiHandler::parseProperties(mx::core::PropertiesPtr property, int partInde
 }
 
 void MidiHandler::addTempo(int track,int tick ,int tempo) {
-    this->mTempo = tempo;
-    this->mMidifile->addTempo(track, tick, tempo * this->mTempoPercent);
+    if (!this->mAdjustTempo){
+        this->mTempo = tempo;
+    }else{
+        // 如果用户手动设置速度，速度则不改变
+        this->mTempo = this->mAdjustTempo;
+    }
+    this->mMidifile->addTempo(track, tick, this->getTempo());
 }
 
 /* add real note */
