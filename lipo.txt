@@ -1,0 +1,1 @@
+lipo -create Debug-iphoneos/MusicFramwork.framework/MusicFramwork Debug-iphonesimulator/MusicFramwork.framework/MusicFramwork -output MusicFramwork
