@@ -33,7 +33,14 @@ CResult::CResult(){
     this->mTotalNotes = 0;
     this->mResultNotes = std::vector<CNote*>();
 }
-
+CResult::~CResult(){
+    //    for(std::vector<CNote *>::iterator it = this->mResultNotes.begin(); it != this->mResultNotes.end(); it ++){
+    //        if (NULL != *it) {
+    //            delete *it;
+    //            *it = NULL;
+    //        }
+    //    }
+}
 #pragma mark ComparePooling Class
 ComparePooling::ComparePooling(std::vector<CNote *> notes, double theta) {
     this->mNotes = notes;
@@ -195,5 +202,20 @@ int ComparePooling::getStaffIndexByChannel(int channel) {
     }
     return staff;
 }
-
+ComparePooling::~ComparePooling(){
+    std::cout<< "*** ComparePooling Release";
+    for(std::vector<MidiSignal *>::iterator it = this->mTempSignals.begin(); it != this->mTempSignals.end(); it ++){
+        if (NULL != *it) {
+            delete *it;
+            *it = NULL;
+        }
+    }
+    
+    for(std::vector<CNote *>::iterator it = this->mNotes.begin(); it != this->mNotes.end(); it ++){
+        if (NULL != *it) {
+            delete *it;
+            *it = NULL;
+        }
+    }
+}
 

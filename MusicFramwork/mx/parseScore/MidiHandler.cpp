@@ -16,6 +16,7 @@
 using namespace mx::core;
 using namespace std;
 
+
 #pragma mark MidiPart
 MidiPart::MidiPart(int staff,int channel, int program,MidiFile* handler){
     this->mStaffs = staff;
@@ -24,12 +25,21 @@ MidiPart::MidiPart(int staff,int channel, int program,MidiFile* handler){
     this->mFileHandler = handler;
 }
 
-void MidiPart::addPatches() {
+void MidiPart::addPatches(double ticks) {
     for (int index = 0; index < this->mStaffs; index++) {
-        this->mFileHandler->addPatchChange(this->mStartTrack+index, 0, this->mChannel, this->mProgram);
+        this->mFileHandler->addPatchChange(this->mStartTrack+index, ticks, this->mChannel, this->mProgram);
     }
 }
 
+MidiPart:: ~MidiPart(){
+}
+#pragma mark MidiInfo
+MidiInfo::MidiInfo(){
+    this->mPrefixBeat = 0;
+    this->mPrefixBeatType = 0 ;
+    this->mTempo = 0;
+    this->mHasPrefix = false;
+}
 
 #pragma mark MidiHandler
 MidiHandler::MidiHandler(string filePath) {
@@ -73,6 +83,8 @@ void MidiHandler::init() {
     this->mTempoPercent = 1.0;
     this->mTempo = 120;
     this->mAdjustTempo = 0;
+    this->mLoadingAccom = false;
+    this->mBeginTicks = 0;
 }
 
 void MidiHandler::setTempoPercent(double percent){
@@ -88,17 +100,19 @@ void MidiHandler::setTempoValue(int tempoValue){
     }
 }
 
-MidiInfo* MidiHandler::save (string path) {
-    this->parse(this->mScore);
+MidiInfo* MidiHandler::save(string path,bool hasPrefix){
+    MidiInfo* info = new MidiInfo();
+    this->midiInfo = info;
+    this->parse(this->mScore,hasPrefix);
     this->mMidifile->sortTracks();
     this->mMidifile->write(path);
-    MidiInfo* info = new MidiInfo();
     info->mTempo = this->getTempo();
+    info->mHasPrefix = hasPrefix;
     return info;
 }
 
 void MidiHandler::reset () {
-    this->mTicks = 0;
+    this->mTicks = this->mBeginTicks;
 }
 
 /* add midi track */
@@ -107,11 +121,75 @@ void MidiHandler::addTrack() {
 }
 
 
-void MidiHandler::parse(mx::core::ScorePartwisePtr scorePartwise){
+void MidiHandler::parse(mx::core::ScorePartwisePtr scorePartwise,bool hasPrefix){
     this->parseScoreHeader(scorePartwise);
+    if(hasPrefix){
+        this->parseAttribute(scorePartwise);
+    }
     this->parsePartList(scorePartwise);
 }
 
+// 先取出attribute信息，计算并加入前奏
+void MidiHandler::parseAttribute(mx::core::ScorePartwisePtr scorePartwise){
+    
+    int i = 0;
+    int selectPart = 0;
+    for (auto partIndex = this->mParts.cbegin(); partIndex != this->mParts.cend(); partIndex++,i++) {
+        if (0 == i) {
+            this->mCurrentTrack = 0;
+        } else {
+            MidiPart* prePart = this->mParts[i-1];
+            this->mCurrentTrack += prePart->mStaffs;
+        }
+        // part 中每个 track 调用 addPatch
+        MidiPart* part = this->mParts[i];
+        part->mStartTrack = this->mCurrentTrack;
+        part->addPatches(0);
+        if (0 == selectPart && part->mProgram <= 8) {
+            selectPart = i;
+        }
+    }
+    
+    
+    for (auto part_it = scorePartwise->getPartwisePartSet().cbegin(); part_it != scorePartwise->getPartwisePartSet().cend(); part_it++,i++) {
+        auto partwise = (*part_it);
+        
+        for (auto measure_it = partwise->getPartwiseMeasureSet().cbegin();measure_it != partwise->getPartwiseMeasureSet().cend(); measure_it++) {
+            MusicDataChoiceSet groupSetPtr = (*measure_it)->getMusicDataGroup()->getMusicDataChoiceSet();
+            for (auto choice_it = groupSetPtr.cbegin() ; choice_it != groupSetPtr.cend() ; choice_it ++) {
+                auto dataChoice = (*choice_it);
+                auto choiceType = dataChoice->getChoice();
+                if (choiceType == MusicDataChoice::Choice::properties) {
+                    auto property = dataChoice->getProperties();
+                    
+                    if (property->getHasDivisions()){
+                        auto divisions = property->getDivisions()->getValue().getValue();
+                        this->mCurrentDivision = (int)divisions;
+                    }
+                    if (property->getTimeSet().size()){
+                        TimePtr time  = *(property->getTimeSet().cbegin());
+                        TimeChoice::Choice choice = time->getTimeChoice()->getChoice();
+                        if (!(int)choice){
+                            TimeSignatureGroupPtr timeSignaturePtr = *(time->getTimeChoice()->getTimeSignatureGroupSet().cbegin());
+                            std::string beats = timeSignaturePtr->getBeats()->getValue().getValue();
+                            std::string beat_types = timeSignaturePtr->getBeatType()->getValue().getValue();
+                            
+                            if(!this->mLoadingAccom){
+                                // 添加前奏
+                                this->mLoadingAccom = true;
+                                this->addFrontAccompany(atoi(beats.c_str()),atoi(beat_types.c_str()),selectPart);
+                                if (this->mCurrentDivision) break;
+                            }
+                            
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    
+}
 void MidiHandler::parseScoreHeader(mx::core::ScorePartwisePtr scorePartwise){
     // Add another one track to the MIDI file
     auto workTitle = scorePartwise->getScoreHeaderGroup()->getWork()->getWorkTitle()->getValue().getValue();
@@ -155,6 +233,22 @@ void MidiHandler::parseScoreHeader(mx::core::ScorePartwisePtr scorePartwise){
     }
 }
 
+void MidiHandler::addFrontAccompany(int beat,int beatType,int trackIndex){
+    this->midiInfo->mPrefixBeat = beat;
+    this->midiInfo->mPrefixBeatType = beatType;
+    double tempo = this->mCurrentDivision * beatType / 4;
+    for (int i = 0;i < beat ;i++){
+        this->addNote(4 ,4,0,tempo,1,trackIndex);
+        this->mTicks -= this->getRelativeDuration(tempo);
+        this->addNote(3 ,4,0,tempo,1,trackIndex);
+        this->mTicks -= this->getRelativeDuration(tempo);
+        this->addNote(2 ,4,0,tempo,1,trackIndex);
+    }
+    //保存前奏的ticks 时长
+    this->mBeginTicks = this->mTicks;
+    
+}
+
 /* parse score parts */
 void MidiHandler::parsePartList(mx::core::ScorePartwisePtr scorePartwise){
     int i = 0 ;
@@ -177,10 +271,10 @@ void MidiHandler::parsePartList(mx::core::ScorePartwisePtr scorePartwise){
                 this->parseDataChoice(*choice_it,i);
             }
         }
-        // part 中每个 track 调用 addPatch
-        MidiPart* part = this->mParts[i];
-        part->mStartTrack = this->mCurrentTrack;
-        part->addPatches();
+        //        // part 中每个 track 调用 addPatch
+        //        MidiPart* part = this->mParts[i];
+        //        part->mStartTrack = this->mCurrentTrack;
+        //        part->addPatches(this->mBeginTicks);
     }
     
 }
@@ -320,5 +414,16 @@ int MidiHandler::getTempo(){
     return this->mTempo * this->mTempoPercent;
 }
 
-MidiHandler::~MidiHandler () {}
+MidiHandler::~MidiHandler () {
+    delete this->midiInfo;
+    delete this->mMidifile;
+    for(vector<MidiPart *>::iterator it = this->mParts.begin(); it != this->mParts.end(); it ++){
+        if (NULL != *it) {
+            delete *it;
+            *it = NULL;
+        }
+    }
+    this->mParts.clear();
+    this->mStepMap.clear();
+}
 

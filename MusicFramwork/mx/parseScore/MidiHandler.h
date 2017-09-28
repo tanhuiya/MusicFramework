@@ -20,8 +20,8 @@ class MidiPart {
     public :
     
     MidiPart(int staff,int channel, int program ,MidiFile* fileHandler);
-    
-    void addPatches();
+    ~MidiPart();
+    void addPatches(double ticks);
     
     MidiFile* mFileHandler;
     int mStaffs;// default 1
@@ -32,7 +32,11 @@ class MidiPart {
 
 class MidiInfo {
 public:
+    MidiInfo();
     int mTempo;
+    bool mHasPrefix;
+    int mPrefixBeat;
+    int mPrefixBeatType;
 };
 
 class MidiHandler {
@@ -41,14 +45,15 @@ public:
     MidiHandler(mx::core::ScorePartwisePtr score);
     void setTempoPercent(double percent);
     void setTempoValue(int tempoValue);
-    MidiInfo* save(string path);
+    MidiInfo* save(string path,bool hasPrefix = false);
     ~MidiHandler();
     int  getTempo();
 private:
     void init ();
     void reset () ;
-    void parse(mx::core::ScorePartwisePtr score);
+    void parse(mx::core::ScorePartwisePtr score,bool hasPrefix);
     void parseScoreHeader(mx::core::ScorePartwisePtr score);
+    void parseAttribute(mx::core::ScorePartwisePtr score);
     void parsePartList(mx::core::ScorePartwisePtr score);
     void parseDataChoice(mx::core::MusicDataChoicePtr dataChoice, int partIndex);
     void parseProperties(mx::core::PropertiesPtr property, int partIndex);
@@ -60,6 +65,7 @@ private:
     void addTrack();
     int  getRelativeDuration(int duration);
     void addTempo(int track,int tick ,int tempo);
+    void addFrontAccompany(int beat,int beatType,int trackIndex);
 protected:
     MidiFile* mMidifile;
     int mTpq;
@@ -74,6 +80,10 @@ protected:
     mx::core::ScorePartwisePtr mScore;
     string mOutputPath;
     int mTempo;
+    bool mLoadingAccom;
+    int mBeginTicks;// 除去前奏的tempo
+    MidiInfo* midiInfo;
 };
 
 #endif /* MidiHandler_h */
+

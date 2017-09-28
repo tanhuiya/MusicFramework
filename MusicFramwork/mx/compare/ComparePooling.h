@@ -68,6 +68,7 @@ public:
 class CResult {
 public:
     CResult();
+    ~CResult();
     int mTotalNotes;
     
     std::vector<CNote*> mResultNotes;
@@ -81,6 +82,7 @@ enum EInstrumentMode{
 class ComparePooling {
 public:
     ComparePooling(std::vector<CNote*> notes, double theta);
+    ~ComparePooling();
     // 定时调用此方法
     std::vector<CNote*> receiveMidiSignals(std::vector<MidiSignal*> notes, double currentTime);
     CResult* getFinalResult();
